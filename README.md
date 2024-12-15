@@ -1,8 +1,51 @@
-## sbt project compiled with Scala 3
+# Rock the JVM Scala 3 advanced course
 
-### Usage
+## Lessons
 
-This is a normal sbt project. You can compile code with `sbt compile`, run it with `sbt run`, and `sbt console` will start a Scala 3 REPL.
-
-For more information on the sbt-dotty plugin, see the
-[scala3-example-project](https://github.com/scala/scala3-example-project/blob/main/README.md).
+- `1.1-scala-recap`
+- `1.2-dark-sugars`
+- `1.3-advanced-pattern-matching`
+- --
+- `2.1-partial-functions`
+- `2.2-functional-set`
+- `2.3-functional-collections`
+- `2.3-functional-set-part-2`
+- `2.4-curries-pafs`
+- `2.5-lazy-eval`
+- `2.6-lazy-lists`
+- `2.7-lazy-lists-part-2`
+- `2.8-monads`
+- `2.9-monads-exercise`
+- --
+- `3.1-jvm-thread-intro`
+- `3.2-jvm-concurrency-problems`
+- `3.3-jvm-thread-communication`
+- `3.4-jvm-thread-communication-2`
+- `3.5-jvm-thread-communication-3`
+- `3.6-futures-intro`
+- `3.7-futures-fp`
+- `3.8-futures-blocking`
+- `3.9-futures-promises`
+- `3.10-futures-exercises`
+- `3.11-parallel-collections`
+- --
+- `4.1-givens`
+- `4.2-extension-methods`
+- `4.3-organization`
+- `4.4-type-classes`
+- `4.5-type-classes-practice-json`
+- `4.6-context-functions`
+- `4.7-implicit-conversions`
+- `4.8-implicits`
+- --
+- `5.1-advanced-inheritance`
+- `5.2-variance`
+- `5.3-variance-positions`
+- `5.4-type-members`
+- `5.5-path-dependent-types`
+- `5.6-opaque-types`
+- `5.7-lit-union-intersection-types`
+- `5.8-self-types`
+- `5.9-f-bounded-polymorphism`
+- `5.10-structural-types`
+- `5.11-higher-kinded-types`
