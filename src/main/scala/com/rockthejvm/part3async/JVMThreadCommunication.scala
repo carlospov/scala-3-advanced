@@ -1,9 +1,12 @@
 package com.rockthejvm.part3async
 
+import scala.collection.mutable
+import scala.util.Random
+
 object JVMThreadCommunication {
 
   def main(args: Array[String]): Unit = {
-    ProdConsV2.start()
+    ProdConsV3.start(10)
   }
 }
 
@@ -89,6 +92,68 @@ object ProdConsV2 {
     consumer.start() // WARNING!!! stating this first is no guarantee that consumer starts first, we have no control over how
     // the jvm + OS schedule threads
     // in the case the producer starts and finishes before the consumer even starts, then it will force the consumer to wait forever (FIX 1)
+    producer.start()
+  }
+}
+
+// larger container with queues
+// producer -> [_ _ _ _] -> consumer
+object ProdConsV3 {
+  def start(containerCapacity: Int): Unit = {
+    val buffer: mutable.Queue[Int] = new mutable.Queue[Int]
+
+    val consumer = new Thread(() => {
+      val random = new Random(System.nanoTime())
+
+      while (true) {
+        buffer.synchronized {
+          // thread-safe area
+          if (buffer.isEmpty) {
+            println("[consumer] buffer empty waiting...")
+            buffer.wait()
+          }
+
+          // buffer not empty
+          val x = buffer.dequeue()
+          println(s"[consumer] I have consumed a value: $x")
+
+          // "producer, give me more elements"
+          buffer.notify() // wake up the producer if its asleep
+
+        }
+
+        Thread.sleep(random.nextInt(500))
+      }
+    })
+
+    val producer = new Thread(() => {
+      val random = new Random(System.nanoTime())
+      var counter = 0
+
+      while (true) {
+        buffer.synchronized {
+          if (buffer.size == containerCapacity) {
+            println(s"[producer] Buffer full, waiting")
+            buffer.wait()
+          }
+
+          // buffer not full
+          val newElement = counter
+          counter +=1
+          println(s"[producer] I am producing, the new value is $newElement")
+          buffer.enqueue(newElement)
+
+          // "consumer, don't be lazy!"
+          buffer.notify() // this wakes up consumer if it's asleep
+          // buffer.notifyAll()
+        }
+
+        Thread.sleep(random.nextInt(500))
+      }
+
+    })
+
+    consumer.start()
     producer.start()
   }
 }
