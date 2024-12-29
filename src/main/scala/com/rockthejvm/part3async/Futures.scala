@@ -1,6 +1,7 @@
 package com.rockthejvm.part3async
 
 import java.util.concurrent.Executors
+import javax.naming.spi.DirStateFactory.Result
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.concurrent.Await
@@ -197,6 +198,98 @@ object Futures {
     producerThread.start()
   }
 
+  /**
+   * Exercises
+   * 1- fulfil a future immediately with a value
+   * 2- in sequence, make sure first future is completed before returning the second
+   * 3- first(fa, fb) => new Future with the value of the first Future to complete
+   * 4- last(fa, fb) => new Future with the value of the last Future to complete
+   * 5- retry an action that returns a future as many times as necessary for a predicate to be true
+   */
+  // ex1
+  def ex1_demo(): Unit = {
+    val promise = Promise[Int]().success(123456789)
+    val futureInside: Future[Int] = promise.future
+
+    // thread 1 - "consumer": monitor the future for competion
+    futureInside.onComplete {
+      case Success(value) => println(s"I've just been completed with $value")
+      case Failure(ex) => ex.printStackTrace()
+    }
+
+  }
+  def completedImmediately[A](value: A): Future[A] = Future(value) // async completion asap
+  def completedImmediately_v2[A](value: A): Future[A] = Future.successful(value) // extra: completion without invoking another thread, synchronous completion
+
+
+  // ex2
+  def inSequence[A, B](first: Future[A], second: Future[B]): Future[B] = {
+    first.flatMap(value1 => second)
+  }
+
+  // ex3
+  def first[A](fa: Future[A], fb: Future[A]): Future[A] = {
+    val promise = Promise[A]
+    fa.onComplete { value1 =>
+      promise.tryComplete(value1)
+    }
+    fb.onComplete { value2 =>
+      promise.tryComplete(value2)
+    }
+
+    promise.future
+  }
+
+  // ex4
+  def last[A](fa: Future[A], fb: Future[A]): Future[A] = {
+    val promise = Promise[A]
+    fa.onComplete { _ =>
+      fb.onComplete { value2 =>
+        promise.tryComplete(value2)
+      }
+    }
+    fb.onComplete { _ =>
+      fa.onComplete { value1 =>
+        promise.tryComplete(value1)
+      }
+    }
+
+    promise.future
+  }
+  // daniels solution
+  def last_daniel[A](fa: Future[A], fb: Future[A]): Future[A] = {
+    val bothPromise = Promise[A]()
+    val lastPromise = Promise[A]()
+
+    def checkAndComplete(result: Try[A]): Unit =
+      if (!bothPromise.tryComplete(result))
+        lastPromise.complete(result)
+
+    fa.onComplete(checkAndComplete)
+    fb.onComplete(checkAndComplete)
+
+    lastPromise.future
+  }
+
+  // ex5
+  def retryUntil[A](action: () => Future[A], predicate: A => Boolean): Future[A] = action().filter(predicate).recoverWith {
+    case _ => retryUntil(action, predicate)
+  }
+
+  def testRetries(): Unit = {
+    val random = Random()
+
+    val action = () => Future {
+      Thread.sleep(100)
+      val nextValue = Random.nextInt(100)
+      println(s"generated $nextValue")
+      nextValue
+    }
+
+    val predicate = (x: Int) => x > 90
+
+    retryUntil(action, predicate).foreach(result => println(s"final result is $result"))
+  }
   def main(args: Array[String]): Unit = {
 //      println(aFuture.value) // inspect the value of the future RIGHT NOW, that's why future.value is of type Option[Try[...]]
 //      Thread.sleep(1001)
@@ -206,7 +299,21 @@ object Futures {
 //    println("purchasing")
 //    println(BankingApp.purchase("daniel-234", "shoes", "merchant-798", 3.567))
 //    println("purchase complete")
-    demoPromises()
+//    demoPromises()
+//    ex1_demo()
+//
+//    lazy val fast = Future {
+//      Thread.sleep(100)
+//      1
+//    }
+//    lazy val slow = Future {
+//      Thread.sleep(1000)
+//      2
+//    }
+//
+//    first(fast, slow).foreach(result => println(s"first: $result"))
+//    last(fast, slow).foreach(result => println(s"last: $result"))
+    testRetries()
     Thread.sleep(2000)
     executor.shutdown()
   }
