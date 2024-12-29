@@ -3,7 +3,7 @@ package com.rockthejvm.part3async
 import java.util.concurrent.Executors
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
-import scala.util.{Try, Success, Failure}
+import scala.util.{Failure, Random, Success, Try}
 
 
 object Futures {
@@ -37,11 +37,107 @@ object Futures {
     case Failure(ex) => println(s"Async computation failed: $ex")
   } // callbacks evaluated on SOME other thread, we can't know beforehand
 
-  def main(args: Array[String]): Unit = {
-    println(aFuture.value) // inspect the value of the future RIGHT NOW, that's why future.value is of type Option[Try[...]]
-    Thread.sleep(1001)
-    executor.shutdown() // to stop the application
-    println(aFuture.value) // inspect the value of the future RIGHT NOW, that's why future.value is of type Option[Try[...]]
 
+  /*
+  Functional composition
+   */
+  case class Profile(id: String, name: String) {
+    def sendMessage(anotherProfile: Profile, message: String) =
+      println(s"${this.name} sending message to ${anotherProfile.name}: $message")
+  }
+
+  object SocialNetwork {
+      // "database"
+      val names = Map(
+        "rtjvm.id.1-daniel" -> "Daniel",
+        "rtjvm.id.2-jane" -> "Jane",
+        "rtjvm.id.3-mark" -> "Mark",
+      )
+
+      val friends = Map (
+        "rtjvm.id.2-jane" -> "rtjvm.id.3-mark"
+      )
+
+      val random = new Random()
+
+      // "API"
+      def fetchProfile(id: String): Future[Profile] = Future {
+        // fetch something from database
+        Thread.sleep(random.nextInt(500))
+        Profile(id, names(id))
+      }
+
+      def fetchBestFriend(profile: Profile): Future[Profile] = Future {
+        Thread.sleep(random.nextInt(400))
+        val bestFriendId = friends(profile.id)
+        Profile(bestFriendId, names(bestFriendId))
+      }
+   }
+
+  // problem: sending a message to my best friend
+  def sendMessageToBestFriend(accountID: String, message: String): Unit = {
+    // 1- call fetchProfile
+    // 2- cal fetchBestFriend
+    // 3- call profile.sendMessage(bestFriend)
+    val profileFuture = SocialNetwork.fetchProfile(accountID)
+    profileFuture.onComplete {
+      case Success(profile) => // "code block" between arrow and the next case
+        val friendProfileFuture = SocialNetwork.fetchBestFriend(profile)
+        friendProfileFuture.onComplete {
+          case Success(friendProfile) => profile.sendMessage(friendProfile, message)
+          case Failure(e) => e.printStackTrace()
+        }
+      case Failure(ex) => ex.printStackTrace()
+    }
+  } // this composes two futures, and even with two futures code looks difficult to read
+  // onComplete is a hassle.
+  // solution: functional composition
+
+
+
+  def sendMessageToBestFriend_v2(accountID: String, message: String): Unit = {
+    val profileFuture = SocialNetwork.fetchProfile(accountID)
+    profileFuture.flatMap { profile => // Future[Unit]
+      SocialNetwork.fetchBestFriend(profile).map { bestfriend => // Future[Unit]
+        profile.sendMessage(bestfriend, message) // Unit
+      }
+    }
+  }
+
+  def sendMessageToBestFriend_v3(accountID: String, message: String): Unit = {
+    for {
+      profile <- SocialNetwork.fetchProfile(accountID)
+      bestFriend <- SocialNetwork.fetchBestFriend(profile)
+    } yield profile.sendMessage(bestFriend, message) // identical to version 2, but easier to read
+  }
+
+
+  val janeProfileFuture = SocialNetwork.fetchProfile("rtjvm.id.2-jane")
+  val janeFuture: Future[String] = janeProfileFuture.map(profile => profile.name) // map transforms value contained inside ASYNCHRONOUSLY
+  val janesBestFriend: Future[Profile] = janeProfileFuture.flatMap(profile => SocialNetwork.fetchBestFriend(profile))
+  val janesBestFriendFilter: Future[Profile] = janesBestFriend.filter(profile => profile.name.startsWith("Z"))
+
+  // fallbacks (in case there's an exception)
+  val profileNoMatterWhat = SocialNetwork.fetchProfile("unknown id").recover {
+    case e: Throwable => Profile("rtjvm.id.0-dummy", "Forever alone")
+  }
+
+  val aFetchedProfileNoMatterWhat: Future[Profile] = SocialNetwork.fetchProfile("unknown id").recoverWith {
+    case e: Throwable => SocialNetwork.fetchProfile("rtjvm.id.0-dummy") // if first failes, this will be return, even when the second future is a failure
+  } // so the exception returned will be the one emerging second future
+
+  // fallback to
+  val fallBackProfile: Future[Profile] = SocialNetwork.fetchProfile("unknown id").fallbackTo(SocialNetwork.fetchProfile("rtjvm.id.0-dummy")) // this case is different to the one before
+  // if the first future is failed and the second too, the exception will be returned from the FIRST future
+
+  def main(args: Array[String]): Unit = {
+//      println(aFuture.value) // inspect the value of the future RIGHT NOW, that's why future.value is of type Option[Try[...]]
+//      Thread.sleep(1001)
+//      executor.shutdown() // to stop the application
+//      println(aFuture.value) // inspect the value of the future RIGHT NOW, that's why future.value is of type Option[Try[...]]
+    sendMessageToBestFriend_v3("rtjvm.id.2-jane", "Hey best friend")
+    Thread.sleep(1001)
+    executor.shutdown()
   }
 }
+
