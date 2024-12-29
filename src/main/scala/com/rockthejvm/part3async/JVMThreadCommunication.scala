@@ -6,7 +6,7 @@ import scala.util.Random
 object JVMThreadCommunication {
 
   def main(args: Array[String]): Unit = {
-    ProdConsV3.start(10)
+    ProdConsV4.start(3, 1, 5)
   }
 }
 
@@ -155,5 +155,86 @@ object ProdConsV3 {
 
     consumer.start()
     producer.start()
+  }
+}
+
+// large container + multiple consumers and producers
+// producer1, producer 2, ... -> [_ _ _ _] -> consumer1, consumer2, ...
+object ProdConsV4 {
+
+  class Consumer(id: Int, buffer: mutable.Queue[Int], capacity: Int) extends Thread {
+    override def run(): Unit = {
+      val random = new Random(System.nanoTime())
+
+      while (true) {
+        buffer.synchronized {
+          // critical section
+          while (buffer.isEmpty) { // it must be a while, because it can happen the following scenario:
+            // producer 1 produces and notifies, consumer2 awakens and consumes, then notifies consumer1, that awakens and tries
+            // to consume from an empty queue, which crashed the program. So... we must constantly check if buffer is empty
+            println(s"[consumer $id] buffer empty, waiting...")
+            buffer.wait()
+          }
+
+          // buffer not empty
+          val newValue = buffer.dequeue()
+          println(s"[consumer $id] consumed $newValue")
+
+          // notify a producer
+          /*
+          Scenario: 2 producers, 1 consumer, capacity 1
+          producer1 produces, then waits
+          producer2 gets scheduled next and checks if buffer full and waits
+          both producers waiting, the next thread awakened is consumer1
+          consumer1 wakes up, consumes and notifies producer1
+          consumer sees buffer empty and waits
+          producer1 is scheduled, produces a value and notifies. This can awaken producer2 or consumer1 (wo don't really know)
+          let the signal go to producer2, producer1 sees buffer full and waits, and producer2 sees buffer full and waits
+          This is a DEADLOCK, every producer and every consumer is blocked and will never be awakened again !!!
+           */
+          buffer.notifyAll() // to wake up every thread
+        }
+
+        Thread.sleep(random.nextInt(500))
+      }
+    }
+  }
+
+  class Producer(id: Int, buffer: mutable.Queue[Int], capacity: Int) extends Thread {
+    override def run(): Unit = {
+      val random = new Random(System.nanoTime())
+      var currentCount = 0
+
+      while (true) {
+        buffer.synchronized {
+          // critical section
+          while (buffer.size == capacity) { // buffer full // same problem as before, it has to be a 'while', not an 'if'
+            println(s"[producer $id] buffer full, waiting...")
+            buffer.wait()
+          }
+
+          // buffer not full
+          println(s"[producer $id] producing $currentCount")
+          buffer.enqueue(currentCount)
+
+          // wake up a consumer
+          buffer.notifyAll()
+
+          currentCount += 1
+        }
+
+        Thread.sleep(random.nextInt(500))
+      }
+    }
+  }
+
+  def start(nProducers: Int, nConsumers: Int, containerCapacity: Int): Unit = {
+    val buffer: mutable.Queue[Int] = new mutable.Queue[Int]
+
+    val producers = (1 to nConsumers).map(id => new Producer(id, buffer, containerCapacity))
+    val consumers = (1 to nProducers).map(id => new Consumer(id, buffer, containerCapacity))
+
+    producers.foreach(_.start())
+    consumers.foreach(_.start())
   }
 }
