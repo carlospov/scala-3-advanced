@@ -4,6 +4,7 @@ import java.util.concurrent.Executors
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.concurrent.Await
+import scala.concurrent.Promise
 import scala.concurrent.duration.*
 import scala.util.{Failure, Random, Success, Try}
 
@@ -171,16 +172,42 @@ object Futures {
     }
   }
 
+  /*
+  Promises
+   */
+  def demoPromises(): Unit = {
+
+    val promise = Promise[Int]()
+    val futureInside: Future[Int] = promise.future
+
+    // thread 1 - "consumer": monitor the future for competion
+    futureInside.onComplete {
+      case Success(value) => println(s"[consumer] I've just been completed with $value")
+      case Failure(ex) => ex.printStackTrace()
+    }
+
+    // thread 2 - "producer" complete future manually
+    val producerThread = new Thread(() => {
+      println("[producer] Crunching numbers...")
+      Thread.sleep(1000)
+      // "fulfil" the promise
+      promise.success(42) // manually complete a future when we want
+      println("[producer] I' done")
+    })
+    producerThread.start()
+  }
+
   def main(args: Array[String]): Unit = {
 //      println(aFuture.value) // inspect the value of the future RIGHT NOW, that's why future.value is of type Option[Try[...]]
 //      Thread.sleep(1001)
 //      executor.shutdown() // to stop the application
 //      println(aFuture.value) // inspect the value of the future RIGHT NOW, that's why future.value is of type Option[Try[...]]
 //    sendMessageToBestFriend_v3("rtjvm.id.2-jane", "Hey best friend")
-    println("purchasing")
-    println(BankingApp.purchase("daniel-234", "shoes", "merchant-798", 3.567))
-    println("purchase complete")
-    Thread.sleep(1001)
+//    println("purchasing")
+//    println(BankingApp.purchase("daniel-234", "shoes", "merchant-798", 3.567))
+//    println("purchase complete")
+    demoPromises()
+    Thread.sleep(2000)
     executor.shutdown()
   }
 }
