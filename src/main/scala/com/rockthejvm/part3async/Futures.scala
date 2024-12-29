@@ -3,6 +3,8 @@ package com.rockthejvm.part3async
 import java.util.concurrent.Executors
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
+import scala.concurrent.Await
+import scala.concurrent.duration.*
 import scala.util.{Failure, Random, Success, Try}
 
 
@@ -32,10 +34,10 @@ object Futures {
   val futureInstantResult: Option[Try[Int]] = aFuture.value
 
   // callbacks
-  aFuture.onComplete {
-    case Success(value) => println(s"I've competed with the meaning of life: $value")
-    case Failure(ex) => println(s"Async computation failed: $ex")
-  } // callbacks evaluated on SOME other thread, we can't know beforehand
+//  aFuture.onComplete {
+//    case Success(value) => println(s"I've competed with the meaning of life: $value")
+//    case Failure(ex) => println(s"Async computation failed: $ex")
+//  } // callbacks evaluated on SOME other thread, we can't know beforehand
 
 
   /*
@@ -130,12 +132,54 @@ object Futures {
   val fallBackProfile: Future[Profile] = SocialNetwork.fetchProfile("unknown id").fallbackTo(SocialNetwork.fetchProfile("rtjvm.id.0-dummy")) // this case is different to the one before
   // if the first future is failed and the second too, the exception will be returned from the FIRST future
 
+
+  /*
+  Block for a future: Do it with caution, just when it's absolutely necessary
+   */
+  case class User(name: String)
+  case class Transaction(sender: String, receiver: String, amount: Double, status: String)
+
+  object BankingApp {
+    // "APIs"
+    def fetchUser(name: String): Future[User] = Future {
+      // simulate db fetching
+      Thread.sleep(500)
+      User(name)
+    }
+
+    def createTransaction(user: User, merchantName: String, amount: Double): Future[Transaction] = Future {
+      // simulate payment
+      Thread.sleep(1000)
+      Transaction(user.name, merchantName, amount, "SUCCESS")
+    }
+
+    // "external API"
+    def purchase(username: String, item: String, merchantName: String, price: Double):  String = {
+      /*
+      1. fetch user
+      2. create tx
+      3. WAIT for the tx to finish
+       */
+      val transactionStatusFuture = for {
+        user <- fetchUser(username)
+        transaction <- createTransaction(user, merchantName, price)
+      } yield transaction.status
+
+      // blocking call
+      Await.result(transactionStatusFuture, 2.seconds) // throws kind of a timeout exception if transactionStatusFuture is not available within 2 seconds or future fails
+      // the method .seconds for int is a non-native extension of Int type
+    }
+  }
+
   def main(args: Array[String]): Unit = {
 //      println(aFuture.value) // inspect the value of the future RIGHT NOW, that's why future.value is of type Option[Try[...]]
 //      Thread.sleep(1001)
 //      executor.shutdown() // to stop the application
 //      println(aFuture.value) // inspect the value of the future RIGHT NOW, that's why future.value is of type Option[Try[...]]
-    sendMessageToBestFriend_v3("rtjvm.id.2-jane", "Hey best friend")
+//    sendMessageToBestFriend_v3("rtjvm.id.2-jane", "Hey best friend")
+    println("purchasing")
+    println(BankingApp.purchase("daniel-234", "shoes", "merchant-798", 3.567))
+    println("purchase complete")
     Thread.sleep(1001)
     executor.shutdown()
   }
