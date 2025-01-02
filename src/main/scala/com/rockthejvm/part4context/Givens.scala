@@ -86,9 +86,30 @@ object Givens {
 
   val listProduct = combineAll(List(1,2,3,4))(using myCombinator) // using has a different meaning, it overrides the default given instance with the one specified
 
+  /**
+   * Exercises
+   * 1- create a given for ordering Option[A] if you can order A
+   * 2- create a summoning method for fetching the givel value of your particular
+   */
+
+  given OptionOrdering[A : Ordering]: Ordering[Option[A]] with {
+    override def compare(x: Option[A], y: Option[A]): Int = (x,y) match {
+      case (None, None) => 0
+      case (None, _) => -1
+      case (_, None) => +1
+      case (_, _) => fetchGivenValue[Ordering[A]].compare(x.get, y.get) // with the below function (exercise2) we can reach given instances out of the definition
+    }
+  }
+
+  def fetchGivenValue[A](using theValue: A): A = {
+    theValue
+  }//in the standard library this function is called "summon"
+
+
   def main(args: Array[String]): Unit = {
     println(anOrderedList)
     println(anInverseOrderedList)
     println(sortedPerople)
+    println(List(Option(1), Option.empty[Int], Option(3), Option(-10)).sorted)
   }
 }
