@@ -181,7 +181,7 @@ object Futures {
     val promise = Promise[Int]()
     val futureInside: Future[Int] = promise.future
 
-    // thread 1 - "consumer": monitor the future for competion
+    // thread 1 - "consumer": monitor the future for completion
     futureInside.onComplete {
       case Success(value) => println(s"[consumer] I've just been completed with $value")
       case Failure(ex) => ex.printStackTrace()

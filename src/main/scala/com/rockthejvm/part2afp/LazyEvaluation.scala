@@ -79,8 +79,8 @@ object LazyEvaluation {
     // demoByNeed()
 //    println("Filter:")
 //    demoFilter()
-//    println("withFilter:")
-//    demoWithFilter()
-    demoForComprehension()
+    println("withFilter:")
+    demoWithFilter()
+//    demoForComprehension()
   }
 }
